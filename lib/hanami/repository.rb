@@ -171,15 +171,24 @@ module Hanami
     def self.define_relation
       a = @associations
       s = @schema
+      v = @view
+      rms = @relation_methods || []
 
       configuration.relation(relation) do
+
         if s.nil?
           schema(infer: true) do
             associations(&a) unless a.nil?
           end
         else
-          schema(&s)
+          schema(*s.first, &s.last)
         end
+
+        # Dave added
+        view(*v.first, &v.last) unless v.nil?
+
+        # Dave added
+        rms.each { |rm| class_eval(&rm) }
       end
 
       relations(relation)
@@ -189,6 +198,11 @@ module Hanami
           Hanami::Model::MappedRelation.new(@#{relation})
         end
       }, __FILE__, __LINE__ - 4
+    end
+
+    def self.relation_methods(&blk)
+      @relation_methods ||= []
+      @relation_methods << blk
     end
 
     # Defines the mapping between a database table and an entity.
@@ -259,8 +273,12 @@ module Hanami
     #       attribute :updated_at, Hanami::Model::Sql::Types::DateTime
     #     end
     #   end
-    def self.schema(&blk)
-      @schema = blk
+    def self.schema(*args,&blk)
+      @schema = [args, blk]
+    end
+
+    def self.view(*args, &blk)
+      @view = [args, blk]
     end
 
     # Declare mapping between database columns and entity's attributes
@@ -405,8 +423,8 @@ module Hanami
     # @return [Hanami::Repository] the new instance
     #
     # @since 0.7.0
-    def initialize
-      super(self.class.container)
+    def initialize(opts={})
+      super(self.class.container, opts)
     end
 
     # Find by primary key
